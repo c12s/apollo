@@ -15,6 +15,17 @@ func (s *Server) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, e
 	return &aPb.GetResp{"myroot"}, nil //TODO: This is test only, dummy value!
 }
 
+func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, error) {
+	fmt.Println(req)
+
+	return &aPb.AuthResp{
+		Value: true,
+		Data: map[string]string{
+			"token": "some_random_token",
+		},
+	}, nil
+}
+
 func Run(ctx context.Context, address string) {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
