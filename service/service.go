@@ -18,10 +18,19 @@ func (s *Server) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, e
 func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, error) {
 	fmt.Println(req)
 
+	if req.Data["intent"] == "login" {
+		return &aPb.AuthResp{
+			Value: true,
+			Data: map[string]string{
+				"token": "some_random_token",
+			},
+		}, nil
+	}
+
 	return &aPb.AuthResp{
-		Value: true,
+		Value: false,
 		Data: map[string]string{
-			"token": "some_random_token",
+			"message": "You do not have access for that action",
 		},
 	}, nil
 }
