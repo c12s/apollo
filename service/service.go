@@ -22,7 +22,8 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 		return &aPb.AuthResp{
 			Value: true,
 			Data: map[string]string{
-				"token": "some_random_token",
+				"token":   "some_random_token",
+				"message": "logged in",
 			},
 		}, nil
 	}
