@@ -1,12 +1,17 @@
 package main
 
 import (
-	"context"
+	"github.com/c12s/apollo/model"
 	"github.com/c12s/apollo/service"
+	"log"
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	service.Run(ctx, "localhost:8083")
-	cancel()
+	conf, err := model.ConfigFile()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	service.Run(conf)
 }
