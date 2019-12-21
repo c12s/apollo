@@ -36,6 +36,8 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 				"message": "logged in",
 			},
 		}, nil
+	} else {
+		fmt.Println("RECEIVED INTENT: ", req.Data, req.Extras)
 	}
 
 	return &aPb.AuthResp{
