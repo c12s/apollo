@@ -7,6 +7,7 @@ import (
 	aPb "github.com/c12s/scheme/apollo"
 	sg "github.com/c12s/stellar-go"
 	// "golang.org/x/net/context"
+	"github.com/c12s/apollo/helper"
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -36,6 +37,16 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 				"message": "logged in",
 			},
 		}, nil
+	} else if req.Data["intent"] == "auth" {
+		token, err := helper.ExtractToken(ctx)
+		if err != nil {
+			fmt.Println(err.Error())
+			span.AddLog(&sg.KV{"token error", err.Error()})
+			return nil, err
+		}
+
+		fmt.Println("TOKEN: ", token)
+
 	} else {
 		fmt.Println("RECEIVED INTENT: ", req.Data, req.Extras)
 	}
