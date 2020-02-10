@@ -1,13 +1,15 @@
 package service
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"github.com/c12s/apollo/model"
-	aPb "github.com/c12s/scheme/apollo"
-	sg "github.com/c12s/stellar-go"
-	// "golang.org/x/net/context"
 	"github.com/c12s/apollo/helper"
+	"github.com/c12s/apollo/model"
+	"github.com/c12s/apollo/storage"
+	aPb "github.com/c12s/scheme/apollo"
+	cPb "github.com/c12s/scheme/celestial"
+	sg "github.com/c12s/stellar-go"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -16,6 +18,66 @@ import (
 
 type Server struct {
 	instrument map[string]string
+	db         storage.DB
+}
+
+func (s *Server) List(ctx context.Context, req *cPb.ListReq) (*cPb.ListResp, error) {
+	span, _ := sg.FromGRPCContext(ctx, "apollo.List")
+	defer span.Finish()
+	fmt.Println(span)
+
+	resp, err := s.Auth(ctx,
+		&aPb.AuthOpt{
+			Data: map[string]string{"intent": "auth"},
+		},
+	)
+
+	if err != nil {
+		span.AddLog(&sg.KV{"apollo resp error", err.Error()})
+		return nil, err
+	}
+
+	if !resp.Value {
+		span.AddLog(&sg.KV{"apollo.auth value", resp.Data["message"]})
+		return nil, errors.New(resp.Data["message"])
+	}
+
+	rsp, err := s.db.List(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"roles list error", err.Error()})
+		return nil, err
+	}
+	return rsp, nil
+}
+
+func (s *Server) Mutate(ctx context.Context, req *cPb.MutateReq) (*cPb.MutateResp, error) {
+	span, _ := sg.FromGRPCContext(ctx, "apollo.Mutate")
+	defer span.Finish()
+	fmt.Println(span)
+
+	resp, err := s.Auth(
+		ctx,
+		&aPb.AuthOpt{
+			Data: map[string]string{"intent": "auth"},
+		},
+	)
+
+	if err != nil {
+		span.AddLog(&sg.KV{"apollo resp error", err.Error()})
+		return nil, err
+	}
+
+	if !resp.Value {
+		span.AddLog(&sg.KV{"apollo.auth value", resp.Data["message"]})
+		return nil, errors.New(resp.Data["message"])
+	}
+
+	rsp, err := s.db.Mutate(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"roles mutate error", err.Error()})
+		return nil, err
+	}
+	return rsp, nil
 }
 
 func (s *Server) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, error) {
@@ -59,7 +121,7 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 	}, nil
 }
 
-func Run(conf *model.Config) {
+func Run(db storage.DB, conf *model.Config) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -72,6 +134,7 @@ func Run(conf *model.Config) {
 	server := grpc.NewServer()
 	apolloServer := &Server{
 		instrument: conf.InstrumentConf,
+		db:         db,
 	}
 
 	n, err := sg.NewCollector(apolloServer.instrument["address"], apolloServer.instrument["stopic"])

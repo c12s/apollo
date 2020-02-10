@@ -12,6 +12,7 @@ type Apollo struct {
 type Config struct {
 	ConfVersion    string            `yaml:"version"`
 	Address        string            `yaml:"address"`
+	DB             []string          `yaml:"db"`
 	InstrumentConf map[string]string `yaml:"instrument"`
 }
 

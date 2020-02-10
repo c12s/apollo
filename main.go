@@ -3,7 +3,9 @@ package main
 import (
 	"github.com/c12s/apollo/model"
 	"github.com/c12s/apollo/service"
+	"github.com/c12s/apollo/storage/etcd"
 	"log"
+	"time"
 )
 
 func main() {
@@ -13,5 +15,10 @@ func main() {
 		return
 	}
 
-	service.Run(conf)
+	db, err := etcd.New(conf, 10*time.Second)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service.Run(db, conf)
 }
