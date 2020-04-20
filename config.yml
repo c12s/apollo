@@ -1,6 +1,7 @@
 apollo:
   version: v1
   address: localhost:8083
+  meridian: localhost:8088
   db:
     - 0.0.0.0:2379
   instrument:

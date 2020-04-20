@@ -8,6 +8,7 @@ import (
 	"github.com/c12s/apollo/storage"
 	aPb "github.com/c12s/scheme/apollo"
 	cPb "github.com/c12s/scheme/celestial"
+	mPb "github.com/c12s/scheme/meridian"
 	sg "github.com/c12s/stellar-go"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -19,6 +20,7 @@ import (
 type Server struct {
 	instrument map[string]string
 	db         storage.DB
+	meridian   string
 }
 
 func (s *Server) List(ctx context.Context, req *cPb.ListReq) (*cPb.ListResp, error) {
@@ -71,6 +73,21 @@ func (s *Server) Mutate(ctx context.Context, req *cPb.MutateReq) (*cPb.MutateRes
 		span.AddLog(&sg.KV{"apollo.auth value", resp.Data["message"]})
 		return nil, errors.New(resp.Data["message"])
 	}
+
+	client := NewMeridianClient(s.meridian)
+	mrsp, err := client.Exists(sg.NewTracedGRPCContext(ctx, span),
+		&mPb.NSReq{Name: req.Mutate.Namespace},
+	)
+	if err != nil {
+		span.AddLog(&sg.KV{"meridian exists error", err.Error()})
+		return nil, err
+	}
+
+	if mrsp.Extras["exists"] != req.Mutate.Namespace {
+		fmt.Println("namespace do not exists")
+		return nil, errors.New(fmt.Sprintf("%s do not exists", req.Mutate.Namespace))
+	}
+	fmt.Println("namespace exists")
 
 	rsp, err := s.db.Mutate(ctx, req)
 	if err != nil {
@@ -135,6 +152,7 @@ func Run(db storage.DB, conf *model.Config) {
 	apolloServer := &Server{
 		instrument: conf.InstrumentConf,
 		db:         db,
+		meridian:   conf.Meridian,
 	}
 
 	n, err := sg.NewCollector(apolloServer.instrument["address"], apolloServer.instrument["stopic"])
