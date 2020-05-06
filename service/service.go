@@ -1,14 +1,12 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"github.com/c12s/apollo/helper"
 	"github.com/c12s/apollo/model"
 	"github.com/c12s/apollo/storage"
 	aPb "github.com/c12s/scheme/apollo"
 	cPb "github.com/c12s/scheme/celestial"
-	mPb "github.com/c12s/scheme/meridian"
 	sg "github.com/c12s/stellar-go"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -28,20 +26,22 @@ func (s *Server) List(ctx context.Context, req *cPb.ListReq) (*cPb.ListResp, err
 	defer span.Finish()
 	fmt.Println(span)
 
-	resp, err := s.Auth(ctx,
-		&aPb.AuthOpt{
-			Data: map[string]string{"intent": "auth"},
-		},
-	)
-
+	token, err := helper.ExtractToken(ctx)
 	if err != nil {
-		span.AddLog(&sg.KV{"apollo resp error", err.Error()})
+		span.AddLog(&sg.KV{"token error", err.Error()})
 		return nil, err
 	}
 
-	if !resp.Value {
-		span.AddLog(&sg.KV{"apollo.auth value", resp.Data["message"]})
-		return nil, errors.New(resp.Data["message"])
+	err = s.auth(ctx, listOpt(req, token))
+	if err != nil {
+		span.AddLog(&sg.KV{"auth error", err.Error()})
+		return nil, err
+	}
+
+	_, err = s.checkNS(ctx, req.Extras["user"], req.Extras["namespace"])
+	if err != nil {
+		span.AddLog(&sg.KV{"check ns error", err.Error()})
+		return nil, err
 	}
 
 	rsp, err := s.db.List(ctx, req)
@@ -57,37 +57,23 @@ func (s *Server) Mutate(ctx context.Context, req *cPb.MutateReq) (*cPb.MutateRes
 	defer span.Finish()
 	fmt.Println(span)
 
-	resp, err := s.Auth(
-		ctx,
-		&aPb.AuthOpt{
-			Data: map[string]string{"intent": "auth"},
-		},
-	)
-
+	token, err := helper.ExtractToken(ctx)
 	if err != nil {
-		span.AddLog(&sg.KV{"apollo resp error", err.Error()})
+		span.AddLog(&sg.KV{"token error", err.Error()})
 		return nil, err
 	}
 
-	if !resp.Value {
-		span.AddLog(&sg.KV{"apollo.auth value", resp.Data["message"]})
-		return nil, errors.New(resp.Data["message"])
-	}
-
-	client := NewMeridianClient(s.meridian)
-	mrsp, err := client.Exists(sg.NewTracedGRPCContext(ctx, span),
-		&mPb.NSReq{Name: req.Mutate.Namespace},
-	)
+	err = s.auth(ctx, mutateOpt(req, token))
 	if err != nil {
-		span.AddLog(&sg.KV{"meridian exists error", err.Error()})
+		span.AddLog(&sg.KV{"auth error", err.Error()})
 		return nil, err
 	}
 
-	if mrsp.Extras["exists"] != req.Mutate.Namespace {
-		fmt.Println("namespace do not exists")
-		return nil, errors.New(fmt.Sprintf("%s do not exists", req.Mutate.Namespace))
+	_, err = s.checkNS(ctx, req.Mutate.UserId, req.Mutate.Namespace)
+	if err != nil {
+		span.AddLog(&sg.KV{"check ns error", err.Error()})
+		return nil, err
 	}
-	fmt.Println("namespace exists")
 
 	rsp, err := s.db.Mutate(ctx, req)
 	if err != nil {
@@ -98,7 +84,7 @@ func (s *Server) Mutate(ctx context.Context, req *cPb.MutateReq) (*cPb.MutateRes
 }
 
 func (s *Server) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, error) {
-	return &aPb.GetResp{"myroot"}, nil //TODO: This is test only, dummy value!
+	return s.db.GetToken(ctx, req)
 }
 
 func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, error) {
@@ -106,36 +92,30 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 	defer span.Finish()
 	fmt.Println(span)
 
-	if req.Data["intent"] == "login" {
-		span.AddLog(&sg.KV{"apollo auth value", "received intent login"})
+	rsp, err := s.db.Auth(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"auth error", err.Error()})
+		return nil, err
+	}
 
-		return &aPb.AuthResp{
-			Value: true,
-			Data: map[string]string{
-				"token":   "some_random_token",
-				"message": "logged in",
-			},
-		}, nil
-	} else if req.Data["intent"] == "auth" {
+	if v, ok := rsp.Data["intent"]; ok && v == "register" && rsp.Value {
 		token, err := helper.ExtractToken(ctx)
 		if err != nil {
-			fmt.Println(err.Error())
 			span.AddLog(&sg.KV{"token error", err.Error()})
 			return nil, err
 		}
-
-		fmt.Println("TOKEN: ", token)
-
-	} else {
-		fmt.Println("RECEIVED INTENT: ", req.Data, req.Extras)
+		err = s.createDefaultNamespace(
+			helper.AppendToken(
+				sg.NewTracedGRPCContext(ctx, span),
+				token,
+			),
+			req.Data["username"])
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &aPb.AuthResp{
-		Value: true,
-		Data: map[string]string{
-			"message": "You do not have access for that action",
-		},
-	}, nil
+	return rsp, nil
 }
 
 func Run(db storage.DB, conf *model.Config) {

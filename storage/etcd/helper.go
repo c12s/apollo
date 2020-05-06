@@ -1,12 +1,14 @@
 package etcd
 
 import (
+	"golang.org/x/crypto/bcrypt"
 	"strconv"
 	"strings"
 )
 
 const (
-	rbac = "rbac"
+	rbac  = "rbac"
+	users = "users"
 )
 
 // keyspace user rbac/namespace:username
@@ -17,8 +19,13 @@ const (
 // example keyspace rbac/default:johndoe/configs
 // example data { "rules" : ["list", "mutate"] }
 
+func usersKeyspace(user, namespace string) string {
+	temp := strings.Join([]string{namespace, user}, ":")
+	return strings.Join([]string{users, temp}, "/")
+}
+
 func userKeyspace(user, namespace string) string {
-	temp := strings.Join([]string{user, namespace}, ":")
+	temp := strings.Join([]string{namespace, user}, ":")
 	return strings.Join([]string{rbac, temp}, "/")
 }
 
@@ -50,4 +57,14 @@ func join(sep string, parts []string) string {
 
 func toString(n int64) string {
 	return strconv.FormatInt(n, 10)
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func checkPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
