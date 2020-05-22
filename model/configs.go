@@ -12,6 +12,10 @@ type Apollo struct {
 type Config struct {
 	ConfVersion    string            `yaml:"version"`
 	Address        string            `yaml:"address"`
+	Meridian       string            `yaml:"meridian"`
+	SEndpoints     []string          `yaml:"sdb"`
+	DB             []string          `yaml:"db"`
+	Cache          string            `yaml:"cache"`
 	InstrumentConf map[string]string `yaml:"instrument"`
 }
 

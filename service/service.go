@@ -1,13 +1,14 @@
 package service
 
 import (
-	"context"
 	"fmt"
-	"github.com/c12s/apollo/model"
-	aPb "github.com/c12s/scheme/apollo"
-	sg "github.com/c12s/stellar-go"
-	// "golang.org/x/net/context"
 	"github.com/c12s/apollo/helper"
+	"github.com/c12s/apollo/model"
+	"github.com/c12s/apollo/storage"
+	aPb "github.com/c12s/scheme/apollo"
+	cPb "github.com/c12s/scheme/celestial"
+	sg "github.com/c12s/stellar-go"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -16,10 +17,74 @@ import (
 
 type Server struct {
 	instrument map[string]string
+	db         storage.DB
+	meridian   string
+}
+
+func (s *Server) List(ctx context.Context, req *cPb.ListReq) (*cPb.ListResp, error) {
+	span, _ := sg.FromGRPCContext(ctx, "apollo.List")
+	defer span.Finish()
+	fmt.Println(span)
+
+	token, err := helper.ExtractToken(ctx)
+	if err != nil {
+		span.AddLog(&sg.KV{"token error", err.Error()})
+		return nil, err
+	}
+
+	err = s.auth(ctx, listOpt(req, token))
+	if err != nil {
+		span.AddLog(&sg.KV{"auth error", err.Error()})
+		return nil, err
+	}
+
+	_, err = s.checkNS(ctx, req.Extras["user"], req.Extras["namespace"])
+	if err != nil {
+		span.AddLog(&sg.KV{"check ns error", err.Error()})
+		return nil, err
+	}
+
+	rsp, err := s.db.List(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"roles list error", err.Error()})
+		return nil, err
+	}
+	return rsp, nil
+}
+
+func (s *Server) Mutate(ctx context.Context, req *cPb.MutateReq) (*cPb.MutateResp, error) {
+	span, _ := sg.FromGRPCContext(ctx, "apollo.Mutate")
+	defer span.Finish()
+	fmt.Println(span)
+
+	token, err := helper.ExtractToken(ctx)
+	if err != nil {
+		span.AddLog(&sg.KV{"token error", err.Error()})
+		return nil, err
+	}
+
+	err = s.auth(ctx, mutateOpt(req, token))
+	if err != nil {
+		span.AddLog(&sg.KV{"auth error", err.Error()})
+		return nil, err
+	}
+
+	_, err = s.checkNS(ctx, req.Mutate.UserId, req.Mutate.Namespace)
+	if err != nil {
+		span.AddLog(&sg.KV{"check ns error", err.Error()})
+		return nil, err
+	}
+
+	rsp, err := s.db.Mutate(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"roles mutate error", err.Error()})
+		return nil, err
+	}
+	return rsp, nil
 }
 
 func (s *Server) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, error) {
-	return &aPb.GetResp{"myroot"}, nil //TODO: This is test only, dummy value!
+	return s.db.GetToken(ctx, req)
 }
 
 func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, error) {
@@ -27,39 +92,33 @@ func (s *Server) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, err
 	defer span.Finish()
 	fmt.Println(span)
 
-	if req.Data["intent"] == "login" {
-		span.AddLog(&sg.KV{"apollo auth value", "received intent login"})
+	rsp, err := s.db.Auth(ctx, req)
+	if err != nil {
+		span.AddLog(&sg.KV{"auth error", err.Error()})
+		return nil, err
+	}
 
-		return &aPb.AuthResp{
-			Value: true,
-			Data: map[string]string{
-				"token":   "some_random_token",
-				"message": "logged in",
-			},
-		}, nil
-	} else if req.Data["intent"] == "auth" {
+	if v, ok := rsp.Data["intent"]; ok && v == "register" && rsp.Value {
 		token, err := helper.ExtractToken(ctx)
 		if err != nil {
-			fmt.Println(err.Error())
 			span.AddLog(&sg.KV{"token error", err.Error()})
 			return nil, err
 		}
-
-		fmt.Println("TOKEN: ", token)
-
-	} else {
-		fmt.Println("RECEIVED INTENT: ", req.Data, req.Extras)
+		err = s.createDefaultNamespace(
+			helper.AppendToken(
+				sg.NewTracedGRPCContext(ctx, span),
+				token,
+			),
+			req.Data["username"])
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &aPb.AuthResp{
-		Value: true,
-		Data: map[string]string{
-			"message": "You do not have access for that action",
-		},
-	}, nil
+	return rsp, nil
 }
 
-func Run(conf *model.Config) {
+func Run(db storage.DB, conf *model.Config) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -72,6 +131,8 @@ func Run(conf *model.Config) {
 	server := grpc.NewServer()
 	apolloServer := &Server{
 		instrument: conf.InstrumentConf,
+		db:         db,
+		meridian:   conf.Meridian,
 	}
 
 	n, err := sg.NewCollector(apolloServer.instrument["address"], apolloServer.instrument["stopic"])
