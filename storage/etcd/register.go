@@ -71,7 +71,7 @@ func (db *DB) update(ctx context.Context, req *aPb.AuthOpt, key string) error {
 func (db *DB) defaultRoles(ctx context.Context, username string) error {
 	key := userKeyspace(username, "default")
 	verbs := []string{"mutate", "list"}
-	for _, res := range []string{"configs", "secrets", "namespaces", "actions", "roles"} {
+	for _, res := range []string{"configs", "secrets", "namespaces", "actions", "roles", "topology"} {
 		resKey := resourceKeyspace(key, res)
 		rs, err := proto.Marshal(&aPb.ACL{
 			Token:   verbs,

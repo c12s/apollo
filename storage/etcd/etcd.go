@@ -202,6 +202,10 @@ func (db *DB) Auth(ctx context.Context, req *aPb.AuthOpt) (*aPb.AuthResp, error)
 			return db.actions(ctx, req)
 		case "namespaces":
 			return db.namespaces(ctx, req)
+		case "topology":
+			return db.topology(ctx, req)
+		case "nodes":
+			return &aPb.AuthResp{Value: true}, nil
 		}
 		return nil, errors.New("Invalid kind")
 	} else if req.Data["intent"] == "register" {

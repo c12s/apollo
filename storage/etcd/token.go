@@ -17,7 +17,7 @@ func (db DB) create(ctx context.Context, key string, data *aPb.AuthOpt) (*aPb.Ge
 	if err != nil {
 		return nil, err
 	}
-	return &aPb.GetResp{token}, nil
+	return &aPb.GetResp{Token: token}, nil
 }
 
 func (db DB) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, error) {
@@ -51,9 +51,9 @@ func (db DB) GetToken(ctx context.Context, req *aPb.GetReq) (*aPb.GetResp, error
 					return nil, err
 				}
 			}
-			return &aPb.GetResp{newToken}, nil
+			return &aPb.GetResp{Token: newToken}, nil
 		}
-		return &aPb.GetResp{secret["id"].(string)}, nil
+		return &aPb.GetResp{Token: secret["id"].(string)}, nil
 	}
 	return nil, errors.New("Token or user do not exists")
 }
