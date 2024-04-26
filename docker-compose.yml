@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+
+  apollo:
+    build:
+      context: ../
+      dockerfile: ./apollo/Dockerfile
+    image: apollo
+    container_name: apollo
+    hostname: ${IAM_HOSTNAME}
+    expose:
+      - ${IAM_PORT}
+    ports:
+      - ${IAM_PORT}:${IAM_PORT}
+    environment:
+      - IAM_PORT=${IAM_PORT}
+    networks:
+      - network
+    depends_on:
+      - neo4j
+
+  valut:
+    image: vault:latest
+    container_name: vault
+    hostname: ${VAULT_HOSTNAME}
+    restart: on-failure
+    expose:
+      - ${VAULT_HTTP_PORT}
+    ports:
+      - ${VAULT_HTTP_PORT}:${VAULT_HTTP_PORT}
+    volumes:
+        - ./apollo/vault/config:/vault/config
+        - ./apollo/vault/data:/vault/data
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - VAULT_API_ADDR=http://0.0.0.0:8200
+      - VAULT_ADDRESS=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=./apollo/apollo/vault/config/vault.json
+
+networks:
+  network:
+    driver: bridge
