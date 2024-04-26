@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+option go_package = "apollo/proto1";
+
+package proto1;
+
+import "modelauth.proto";
+
+service AuthService {
+  rpc RegisterUser(User) returns (RegResp) {}
+  rpc LoginUser(LoginReq) returns (LoginResp) {}
+  rpc Authorize(AuthorizationReq) returns (AuthorizationResp) {}
+  rpc VerifyToken(Token) returns (VerifyResp) {}
+  rpc DecodeJwt(Token) returns (DecodedJwtResp) {}
+}
+
+message AuthorizationReq {
+  Resource subject = 1;
+  Resource object = 2;
+  repeated Attribute envAttributes = 3;
+  string permissionName = 4;
+}
+
+message AuthorizationResp {
+  bool authorized = 1;
+}
+
+message RegResp {
+  RegisteredUser user = 1;
+}
+
+message LoginReq {
+    string username = 1;
+    string password = 2;
+}
+
+message LoginResp {
+    string token = 1;
+}
+
+message VerifyResp {
+    InternalToken token = 1;
+    string username = 2;
+}
+
+message InternalToken {
+    string jwt = 1;
+    bool verified = 2;
+}
+
+message DecodedJwtResp {
+    repeated string permissions = 1;
+}
