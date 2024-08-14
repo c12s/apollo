@@ -1,10 +1,10 @@
 package server
 
 import (
-	"context"
-	"fmt"
 	"apollo/proto1"
 	"apollo/service"
+	"context"
+	"fmt"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,13 +28,13 @@ func (o *AuthServiceServer) Authorize(ctx context.Context, req *proto1.Authoriza
 func (o *AuthServiceServer) RegisterUser(ctx context.Context, req *proto1.User) (*proto1.RegResp, error) {
 	user, err := proto1.UserToModel(req)
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("%s", err))
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%s", err))
 	}
 
 	resp := o.service.RegisterUser(ctx, *user)
 
 	if resp.Error != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("%s", resp.Error))
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%s", resp.Error))
 	}
 
 	return &proto1.RegResp{User: &proto1.RegisteredUser{
@@ -54,7 +54,7 @@ func (o *AuthServiceServer) LoginUser(ctx context.Context, req *proto1.LoginReq)
 	resp := o.service.LoginUser(*user)
 
 	if resp.Error != nil {
-		return nil, status.Error(codes.Internal, "Invalid username and/or password")
+		return nil, status.Error(codes.InvalidArgument, "Invalid username and/or password")
 	}
 
 	return &proto1.LoginResp{Token: resp.Token}, nil

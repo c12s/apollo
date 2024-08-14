@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS apollo.user (
     updated_at DATE,
     PRIMARY KEY (id, username)
 );
+CREATE INDEX IF NOT EXISTS ON apollo.user(email);
+CREATE INDEX IF NOT EXISTS ON apollo.user(username);
+
 
 CREATE TABLE IF NOT EXISTS apollo.org_user (
     org_id UUID,
