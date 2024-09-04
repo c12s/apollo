@@ -89,7 +89,6 @@ func transformPermissions(username string, permissions []*oort.GrantedPermission
 
 	if len(permissions) > 0 {
 		for _, perm := range permissions {
-			// transformed treba da sadrzi sve permisije koje user ima na nivou organizacije
 			if perm.Object.Kind != "user" && perm.Object.Id != username {
 				transformed = transformed + perm.Name + "|" + perm.Object.Kind + "|" + perm.Object.Id + ","
 			}

@@ -10,6 +10,10 @@ func UserToModel(req *User) (*model.User, error) {
 		return &model.User{}, errors.New("required fields are missing")
 	}
 
+	if req.Org == req.Username {
+		return &model.User{}, errors.New("username and organization name must be different")
+	}
+
 	org := req.Org
 	if org == "" {
 		org = req.Username + "_default"
