@@ -1,12 +1,11 @@
 package service
 
 import (
-	"context"
 	"apollo/client"
 	"apollo/model"
 	"apollo/vault"
+	"context"
 	"log"
-	"strings"
 
 	oort "github.com/c12s/oort/pkg/api"
 )
@@ -90,7 +89,7 @@ func transformPermissions(username string, permissions []*oort.GrantedPermission
 
 	if len(permissions) > 0 {
 		for _, perm := range permissions {
-			if !strings.Contains(perm.Object.Id, username) {
+			if perm.Object.Kind != "user" && perm.Object.Id != username {
 				transformed = transformed + perm.Name + "|" + perm.Object.Kind + "|" + perm.Object.Id + ","
 			}
 		}
