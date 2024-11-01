@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthServiceClient interface {
-	RegisterUser(ctx context.Context, in *User, opts ...grpc.CallOption) (*RegResp, error)
+	RegisterUser(ctx context.Context, in *UserDTO, opts ...grpc.CallOption) (*RegResp, error)
 	LoginUser(ctx context.Context, in *LoginReq, opts ...grpc.CallOption) (*LoginResp, error)
 	Authorize(ctx context.Context, in *AuthorizationReq, opts ...grpc.CallOption) (*AuthorizationResp, error)
 	VerifyToken(ctx context.Context, in *Token, opts ...grpc.CallOption) (*VerifyResp, error)
@@ -45,7 +45,7 @@ func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
-func (c *authServiceClient) RegisterUser(ctx context.Context, in *User, opts ...grpc.CallOption) (*RegResp, error) {
+func (c *authServiceClient) RegisterUser(ctx context.Context, in *UserDTO, opts ...grpc.CallOption) (*RegResp, error) {
 	out := new(RegResp)
 	err := c.cc.Invoke(ctx, AuthService_RegisterUser_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *authServiceClient) DecodeJwt(ctx context.Context, in *Token, opts ...gr
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility
 type AuthServiceServer interface {
-	RegisterUser(context.Context, *User) (*RegResp, error)
+	RegisterUser(context.Context, *UserDTO) (*RegResp, error)
 	LoginUser(context.Context, *LoginReq) (*LoginResp, error)
 	Authorize(context.Context, *AuthorizationReq) (*AuthorizationResp, error)
 	VerifyToken(context.Context, *Token) (*VerifyResp, error)
@@ -106,7 +106,7 @@ type AuthServiceServer interface {
 type UnimplementedAuthServiceServer struct {
 }
 
-func (UnimplementedAuthServiceServer) RegisterUser(context.Context, *User) (*RegResp, error) {
+func (UnimplementedAuthServiceServer) RegisterUser(context.Context, *UserDTO) (*RegResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterUser not implemented")
 }
 func (UnimplementedAuthServiceServer) LoginUser(context.Context, *LoginReq) (*LoginResp, error) {
@@ -135,7 +135,7 @@ func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
 }
 
 func _AuthService_RegisterUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(User)
+	in := new(UserDTO)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func _AuthService_RegisterUser_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: AuthService_RegisterUser_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).RegisterUser(ctx, req.(*User))
+		return srv.(AuthServiceServer).RegisterUser(ctx, req.(*UserDTO))
 	}
 	return interceptor(ctx, in, info, handler)
 }

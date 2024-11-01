@@ -1,10 +1,11 @@
 package service
 
 import (
-	"context"
 	"apollo/client"
 	"apollo/model"
+	"apollo/repository"
 	"apollo/vault"
+	"context"
 	"log"
 	"strings"
 
@@ -12,37 +13,37 @@ import (
 )
 
 type AuthService struct {
-	repo model.UserRepo
+	repo repository.IUserRepo
 	v    *vault.VaultClientService
 }
 
 // init
-func NewAuthService(repo model.UserRepo, v *vault.VaultClientService) (*AuthService, error) {
+func NewAuthService(repo repository.IUserRepo, v *vault.VaultClientService) (*AuthService, error) {
 	return &AuthService{
 		repo: repo,
 		v:    v,
 	}, nil
 }
 
-func (h AuthService) RegisterUser(ctx context.Context, req model.User) model.RegisterResp {
+func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.RegisterResp {
 	refClient := *h.v
 	registerResp := h.repo.CreateUser(ctx, req)
 
 	if registerResp.Error != nil {
 		return registerResp
-	} else {
-		err := client.CreateOrgUserRelationship(registerResp.User.Org, registerResp.User.Username)
-		if err != nil {
-			log.Printf("Error while creating inheritance rel: %v", err)
-			return model.RegisterResp{User: model.User{}, Error: err}
-		}
-
-		client.CreatePolicyAsync(registerResp.User.Org,
-			registerResp.User.Username,
-			getPermissionsForOort(registerResp.User.Permissions))
-
-		refClient.RegisterUser(req.Username, req.Password, []string{"org.add"})
 	}
+
+	err := client.CreateOrgUserRelationship(registerResp.User.Org, registerResp.User.Username)
+	if err != nil {
+		log.Printf("Error while creating inheritance rel: %v", err)
+		return model.RegisterResp{User: model.UserDTO{}, Error: err}
+	}
+
+	client.CreatePolicyAsync(registerResp.User.Org,
+		registerResp.User.Username,
+		registerResp.User.Permissions)
+
+	refClient.RegisterUser(req.Username, req.Password, []string{"org.add"})
 
 	return registerResp
 }
@@ -98,19 +99,4 @@ func transformPermissions(username string, permissions []*oort.GrantedPermission
 	}
 
 	return transformed
-}
-
-func getPermissionsForOort(permissions []string) []*oort.Permission {
-	var oortPermissions []*oort.Permission
-
-	for _, perm := range permissions {
-		oortPerm := &oort.Permission{
-			Name:      perm,
-			Kind:      oort.Permission_ALLOW,
-			Condition: &oort.Condition{Expression: ""},
-		}
-		oortPermissions = append(oortPermissions, oortPerm)
-	}
-
-	return oortPermissions
 }
