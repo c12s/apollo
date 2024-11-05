@@ -25,7 +25,7 @@ func ProtoUserToDTO(req *UserDTO) (*model.UserDTO, error) {
 	}
 
 	if req.Org == req.Username {
-		return &model.User{}, errors.New("username and organization name must be different")
+		return &model.UserDTO{}, errors.New("username and organization name must be different")
 	}
 
 	org := req.Org
