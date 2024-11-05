@@ -2,9 +2,10 @@ package main
 
 import (
 	"apollo/configs"
-	"apollo/model"
+	"apollo/model/dao"
 	"apollo/model/db"
 	"apollo/proto1"
+	"apollo/repository"
 	"apollo/server"
 	"apollo/service"
 	"apollo/vault"
@@ -25,8 +26,8 @@ type app struct {
 	authServiceServer         proto1.AuthServiceServer
 	authService               *service.AuthService
 	vaultService              *vault.VaultClientService
-	authRepo                  model.UserRepo
-	cm                        *db.CassandraManager
+	authRepo                  repository.IUserRepo
+	cm                        *db.ScyllaManager
 	shutdownProcesses         []func()
 	gracefulShutdownProcesses []func(wg *sync.WaitGroup)
 }
@@ -44,7 +45,6 @@ func NewAppWithConfig(config configs.Config) (*app, error) {
 
 func (a *app) Start() error {
 	a.init()
-
 	return a.startGrpcServer()
 }
 
@@ -77,7 +77,7 @@ func (a *app) GracefulStop(ctx context.Context) {
 }
 
 func (a *app) init() {
-	manager := db.NewCassandraManager()
+	manager := db.NewScyllaManager()
 	a.cm = manager
 
 	a.initUserRepo(a.cm)
@@ -130,8 +130,11 @@ func (a *app) initAuthService() {
 	a.authService = authService
 }
 
-func (a *app) initUserRepo(manager *db.CassandraManager) {
-	a.authRepo = db.NewUserRepo(manager)
+func (a *app) initUserRepo(manager *db.ScyllaManager) {
+	handler := dao.NewUserHandler(manager)
+	orgHandler := dao.NewOrgHandler(manager)
+	permHandler := dao.NewPermHandler(manager)
+	a.authRepo = repository.NewUserRepo(&handler, &orgHandler, &permHandler)
 }
 
 func (a *app) startGrpcServer() error {

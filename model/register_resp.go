@@ -1,7 +1,7 @@
 package model
 
 type RegisterResp struct {
-	User User
+	User  UserDTO
 	Error error
 }
 
@@ -11,10 +11,9 @@ type LoginReq struct {
 }
 
 type LoginResp struct {
-	Token string	//
+	Token string
 	Error error
 }
-
 
 type AuthorizationReq struct {
 	Subject,
