@@ -37,7 +37,7 @@ func createCluster() *gocql.ClusterConfig {
 }
 
 func CreateSession() *gocqlx.Session {
-	time.Sleep(10 * time.Second) // ovo ceka da se izvrsi init skripta
+	time.Sleep(15 * time.Second) // ovo ceka da se izvrsi init skripta
 	cluster := createCluster()
 	session, err := gocqlx.WrapSession(cluster.CreateSession())
 
