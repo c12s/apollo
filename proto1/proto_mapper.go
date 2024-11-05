@@ -5,13 +5,27 @@ import (
 	"errors"
 )
 
-func UserToModel(req *User) (*model.User, error) {
+func UserToModel(req *model.UserDTO) (*model.User, error) {
+
+	return &model.User{
+		Name:     req.Name,
+		Surname:  req.Surname,
+		Email:    req.Email,
+		Username: req.Username,
+	}, nil
+}
+
+func ProtoUserToDTO(req *UserDTO) (*model.UserDTO, error) {
 	if req.Email == "" || req.Username == "" || req.Password == "" {
-		return &model.User{}, errors.New("required fields are missing")
+		return &model.UserDTO{}, errors.New("required fields are missing")
 	}
 
 	if req.Org == req.Username {
-		return &model.User{}, errors.New("username and organization name must be different")
+		return &model.UserDTO{}, errors.New("username and organization name must be different")
+	}
+
+	if req.Org == req.Username {
+		return &model.UserDTO{}, errors.New("username and organization name must be different")
 	}
 
 	org := req.Org
@@ -19,7 +33,7 @@ func UserToModel(req *User) (*model.User, error) {
 		org = req.Username + "_default"
 	}
 
-	return &model.User{
+	return &model.UserDTO{
 		Name:     req.Name,
 		Surname:  req.Surname,
 		Email:    req.Email,

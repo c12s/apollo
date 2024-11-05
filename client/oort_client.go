@@ -5,6 +5,7 @@ import (
 	//"apollo/proto1"
 	"fmt"
 	"log"
+
 	oort "github.com/c12s/oort/pkg/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,16 +21,16 @@ func AuthorizeUser(permission string, subjectId string) bool {
 	evaluatorClient := oort.NewOortEvaluatorClient(conn)
 
 	getResp, err := evaluatorClient.Authorize(context.Background(), &oort.AuthorizationReq{
-			Subject:        &oort.Resource{
-				Id:   subjectId,
-				Kind: "user",
-			},
-			Object:         &oort.Resource{
-				Id:   "idk",
-				Kind: "user",
-			},
-			PermissionName: permission,
-	}) 
+		Subject: &oort.Resource{
+			Id:   subjectId,
+			Kind: "user",
+		},
+		Object: &oort.Resource{
+			Id:   "idk",
+			Kind: "user",
+		},
+		PermissionName: permission,
+	})
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -55,7 +56,7 @@ func CreateOrgUserRelationship(org_id string, user_id string) error {
 			Id:   org_id,
 			Kind: "org",
 		},
-		To:   &oort.Resource{
+		To: &oort.Resource{
 			Id:   user_id,
 			Kind: "user",
 		},
@@ -95,7 +96,8 @@ func GetGrantedPermissions(user string) []*oort.GrantedPermission {
 	return resp.Permissions
 }
 
-func CreatePolicyAsync(org_id string, user string, permissions []*oort.Permission) {
+func CreatePolicyAsync(org_id string, user string, perms []string) {
+	permissions := getPermissionsForOort(perms)
 	administratorAsync, err := oort.NewAdministrationAsyncClient("nats:4222")
 
 	if err != nil {
@@ -110,11 +112,11 @@ func CreatePolicyAsync(org_id string, user string, permissions []*oort.Permissio
 				Id:   user,
 				Kind: "user",
 			},
-			ObjectScope:  &oort.Resource{
+			ObjectScope: &oort.Resource{
 				Id:   org_id,
 				Kind: "org",
 			},
-			Permission:   perm,
+			Permission: perm,
 		}, func(resp *oort.AdministrationAsyncResp) {
 			if len(resp.Error) > 0 {
 				log.Println(resp.Error)
@@ -124,5 +126,20 @@ func CreatePolicyAsync(org_id string, user string, permissions []*oort.Permissio
 			log.Fatalln(err)
 		}
 	}
-	
+
+}
+
+func getPermissionsForOort(permissions []string) []*oort.Permission {
+	var oortPermissions []*oort.Permission
+
+	for _, perm := range permissions {
+		oortPerm := &oort.Permission{
+			Name:      perm,
+			Kind:      oort.Permission_ALLOW,
+			Condition: &oort.Condition{Expression: ""},
+		}
+		oortPermissions = append(oortPermissions, oortPerm)
+	}
+
+	return oortPermissions
 }

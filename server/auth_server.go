@@ -25,8 +25,8 @@ func (o *AuthServiceServer) Authorize(ctx context.Context, req *proto1.Authoriza
 	return &proto1.AuthorizationResp{Authorized: true}, nil
 }
 
-func (o *AuthServiceServer) RegisterUser(ctx context.Context, req *proto1.User) (*proto1.RegResp, error) {
-	user, err := proto1.UserToModel(req)
+func (o *AuthServiceServer) RegisterUser(ctx context.Context, req *proto1.UserDTO) (*proto1.RegResp, error) {
+	user, err := proto1.ProtoUserToDTO(req)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%s", err))
 	}
@@ -38,7 +38,6 @@ func (o *AuthServiceServer) RegisterUser(ctx context.Context, req *proto1.User) 
 	}
 
 	return &proto1.RegResp{User: &proto1.RegisteredUser{
-		Id:      resp.User.Id,
 		Name:    resp.User.Name,
 		Surname: resp.User.Surname,
 		Email:   resp.User.Email}}, nil
