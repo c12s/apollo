@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"apollo/configs"
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -20,7 +20,9 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	err = app.Start()
+
+	ctx := context.Background()
+	err = app.Start(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}

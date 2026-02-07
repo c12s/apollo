@@ -16,6 +16,7 @@ import (
 	"net"
 	"sync"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -43,8 +44,14 @@ func NewAppWithConfig(config configs.Config) (*app, error) {
 	}, nil
 }
 
-func (a *app) Start() error {
-	a.init()
+func (a *app) Start(ctx context.Context) error {
+	shutdownTracing := initTracing(
+		"apollo",
+		a.config.Tracing().Endpoint(),
+	)
+	a.shutdownProcesses = append(a.shutdownProcesses, shutdownTracing)
+
+	a.init(ctx)
 	return a.startGrpcServer()
 }
 
@@ -76,13 +83,13 @@ func (a *app) GracefulStop(ctx context.Context) {
 	}
 }
 
-func (a *app) init() {
+func (a *app) init(ctx context.Context) {
 	manager := db.NewScyllaManager()
 	a.cm = manager
 
 	a.initUserRepo(a.cm)
 
-	a.initVaultClientService()
+	a.initVaultClientService(ctx)
 	a.initAuthService()
 
 	a.initAuthServiceServer()
@@ -94,7 +101,9 @@ func (a *app) initGrpcServer() {
 	if a.authServiceServer == nil {
 		log.Fatalln("eval grpc server is nil")
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
 	proto1.RegisterAuthServiceServer(s, a.authServiceServer)
 	reflection.Register(s)
 	a.grpcServer = s
@@ -111,8 +120,8 @@ func (a *app) initAuthServiceServer() {
 	a.authServiceServer = server
 }
 
-func (a *app) initVaultClientService() {
-	vaultService, err := vault.NewVaultClientService()
+func (a *app) initVaultClientService(ctx context.Context) {
+	vaultService, err := vault.NewVaultClientService(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}

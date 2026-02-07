@@ -9,6 +9,7 @@ import (
 	"log"
 
 	oort "github.com/c12s/oort/pkg/api"
+	"go.opentelemetry.io/otel"
 )
 
 type AuthService struct {
@@ -25,6 +26,10 @@ func NewAuthService(repo repository.IUserRepo, v *vault.VaultClientService) (*Au
 }
 
 func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.RegisterResp {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.RegisterUser")
+	defer span.End()
+
 	refClient := *h.v
 	registerResp := h.repo.CreateUser(ctx, req)
 
@@ -42,14 +47,18 @@ func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.
 		registerResp.User.Username,
 		registerResp.User.Permissions)
 
-	refClient.RegisterUser(req.Username, req.Password, []string{"org.add"})
+	refClient.RegisterUser(ctx, req.Username, req.Password, []string{"org.add"})
 
 	return registerResp
 }
 
-func (h AuthService) LoginUser(req model.LoginReq) model.LoginResp {
+func (h AuthService) LoginUser(ctx context.Context, req model.LoginReq) model.LoginResp {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.LoginUser")
+	defer span.End()
+
 	refClient := *h.v
-	loginResp := refClient.LoginUser(req)
+	loginResp := refClient.LoginUser(ctx, req)
 	if loginResp.Error != nil {
 		return loginResp
 	}
@@ -60,9 +69,13 @@ func (h AuthService) Autorize(req model.AuthorizationReq) model.AuthorizationRes
 	return model.AuthorizationResp{Authorized: true}
 }
 
-func (h AuthService) VerifyToken(req model.Token) (model.InternalToken, string) {
+func (h AuthService) VerifyToken(ctx context.Context, req model.Token) (model.InternalToken, string) {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.VerifyToken")
+	defer span.End()
+
 	refClient := *h.v
-	response := refClient.VerifyToken(req.Token)
+	response := refClient.VerifyToken(ctx, req.Token)
 
 	if !response.Verified {
 		return model.InternalToken{Verified: response.Verified, Jwt: ""}, ""

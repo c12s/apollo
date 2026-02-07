@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"log"
+
+	"go.opentelemetry.io/otel"
 )
 
 type UserRepo struct {
@@ -24,6 +26,10 @@ func NewUserRepo(userHandler *dao.UserHandler, orgHandler *dao.OrgHandler, permH
 }
 
 func (store UserRepo) CreateUser(ctx context.Context, req model.UserDTO) model.RegisterResp {
+	tracer := otel.Tracer("apollo.UserRepo")
+	ctx, span := tracer.Start(ctx, "UserRepo.CreateUser")
+	defer span.End()
+
 	user, _ := proto1.UserToModel(&req)
 	_, err := store.orgHandler.FindOrgByName(ctx, req.Org)
 
@@ -76,5 +82,9 @@ func (store UserRepo) CreateUser(ctx context.Context, req model.UserDTO) model.R
 }
 
 func (store UserRepo) LoginUser(ctx context.Context, req model.LoginReq) model.LoginResp {
+	tracer := otel.Tracer("apollo.UserRepo")
+	ctx, span := tracer.Start(ctx, "UserRepo.LoginUser")
+	defer span.End()
+
 	return model.LoginResp{Token: "", Error: errors.New("invalid mapping")}
 }

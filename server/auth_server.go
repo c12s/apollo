@@ -50,7 +50,7 @@ func (o *AuthServiceServer) LoginUser(ctx context.Context, req *proto1.LoginReq)
 		return nil, status.Error(codes.Internal, "Error in login request")
 	}
 
-	resp := o.service.LoginUser(*user)
+	resp := o.service.LoginUser(ctx, *user)
 
 	if resp.Error != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid username and/or password")
@@ -66,7 +66,7 @@ func (o *AuthServiceServer) VerifyToken(ctx context.Context, req *proto1.Token) 
 		return nil, status.Error(codes.Internal, "Error in token request")
 	}
 
-	resp, username := o.service.VerifyToken(*token)
+	resp, username := o.service.VerifyToken(ctx, *token)
 
 	if !resp.Verified {
 		return nil, status.Error(codes.Unauthenticated, "Invalid token")
