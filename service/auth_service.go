@@ -9,6 +9,7 @@ import (
 	"log"
 
 	oort "github.com/c12s/oort/pkg/api"
+	"go.opentelemetry.io/otel"
 )
 
 type AuthService struct {
@@ -25,6 +26,10 @@ func NewAuthService(repo repository.IUserRepo, v *vault.VaultClientService) (*Au
 }
 
 func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.RegisterResp {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.RegisterUser")
+	defer span.End()
+
 	refClient := *h.v
 	registerResp := h.repo.CreateUser(ctx, req)
 
@@ -32,24 +37,28 @@ func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.
 		return registerResp
 	}
 
-	err := client.CreateOrgUserRelationship(registerResp.User.Org, registerResp.User.Username)
+	err := client.CreateOrgUserRelationship(ctx, registerResp.User.Org, registerResp.User.Username)
 	if err != nil {
 		log.Printf("Error while creating inheritance rel: %v", err)
 		return model.RegisterResp{User: model.UserDTO{}, Error: err}
 	}
 
-	client.CreatePolicyAsync(registerResp.User.Org,
+	client.CreatePolicyAsync(ctx, registerResp.User.Org,
 		registerResp.User.Username,
 		registerResp.User.Permissions)
 
-	refClient.RegisterUser(req.Username, req.Password, []string{"org.add"})
+	refClient.RegisterUser(ctx, req.Username, req.Password, []string{"org.add"})
 
 	return registerResp
 }
 
-func (h AuthService) LoginUser(req model.LoginReq) model.LoginResp {
+func (h AuthService) LoginUser(ctx context.Context, req model.LoginReq) model.LoginResp {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.LoginUser")
+	defer span.End()
+
 	refClient := *h.v
-	loginResp := refClient.LoginUser(req)
+	loginResp := refClient.LoginUser(ctx, req)
 	if loginResp.Error != nil {
 		return loginResp
 	}
@@ -60,16 +69,20 @@ func (h AuthService) Autorize(req model.AuthorizationReq) model.AuthorizationRes
 	return model.AuthorizationResp{Authorized: true}
 }
 
-func (h AuthService) VerifyToken(req model.Token) (model.InternalToken, string) {
+func (h AuthService) VerifyToken(ctx context.Context, req model.Token) (model.InternalToken, string) {
+	tracer := otel.Tracer("auth-service")
+	ctx, span := tracer.Start(ctx, "AuthService.VerifyToken")
+	defer span.End()
+
 	refClient := *h.v
-	response := refClient.VerifyToken(req.Token)
+	response := refClient.VerifyToken(ctx, req.Token)
 
 	if !response.Verified {
 		return model.InternalToken{Verified: response.Verified, Jwt: ""}, ""
 	}
 
 	// proveriti da li ima nekih promena na oort-u
-	permissions := client.GetGrantedPermissions(response.Username)
+	permissions := client.GetGrantedPermissions(ctx, response.Username)
 
 	// create jwt with permissions inside
 	token, err := CreateToken(response.Username, transformPermissions(response.Username, permissions))

@@ -1,10 +1,10 @@
 package vault
 
 import (
+	"apollo/model"
 	"context"
 	"encoding/json"
 	"fmt"
-	"apollo/model"
 	"io/ioutil"
 	"log"
 	"os"
@@ -12,6 +12,7 @@ import (
 
 	vault "github.com/hashicorp/vault-client-go"
 	schema "github.com/hashicorp/vault-client-go/schema"
+	"go.opentelemetry.io/otel"
 )
 
 type VaultClientService struct {
@@ -24,13 +25,13 @@ type VaultKey struct {
 }
 
 // init
-func NewVaultClientService() (*VaultClientService, error) {
+func NewVaultClientService(ctx context.Context) (*VaultClientService, error) {
 	return &VaultClientService{
-		client: initClient(),
+		client: initClient(ctx),
 	}, nil
 }
 
-func initClient() *vault.Client {
+func initClient(ctx context.Context) *vault.Client {
 	vaultAddress := fmt.Sprintf("http://%s:%s",
 		os.Getenv("VAULT_HOSTNAME"),
 		os.Getenv("VAULT_HTTP_PORT"))
@@ -59,12 +60,12 @@ func initClient() *vault.Client {
 			log.Printf("Error while trying to set vault token: %v", err)
 		}
 
-		Unseal(client, vaultKey.UnsealKey)
+		Unseal(ctx, client, vaultKey.UnsealKey)
 		return client
 	}
 
 	// init
-	initializedVault := Initialize(client)
+	initializedVault := Initialize(ctx, client)
 	vaultKey := VaultKey{
 		RootKey:   initializedVault.rootKey,
 		UnsealKey: initializedVault.keysArray[0].(string),
@@ -76,15 +77,19 @@ func initClient() *vault.Client {
 		log.Fatal(err)
 	}
 
-	Unseal(client, vaultKey.UnsealKey)
-	MountSecretEngine(client)
+	Unseal(ctx, client, vaultKey.UnsealKey)
+	MountSecretEngine(ctx, client)
 
 	return client
 }
 
-func (v VaultClientService) RegisterUser(username string, password string, policies []string) {
+func (v VaultClientService) RegisterUser(ctx context.Context, username string, password string, policies []string) {
+	tracer := otel.Tracer("vault-client")
+	ctx, span := tracer.Start(ctx, "Vault.RegisterUser")
+	defer span.End()
+
 	resp, err := v.client.Auth.UserpassWriteUser(
-		context.Background(),
+		ctx,
 		username,
 		schema.UserpassWriteUserRequest{
 			Password:    password,
@@ -103,9 +108,13 @@ func (v VaultClientService) RegisterUser(username string, password string, polic
 
 }
 
-func (v VaultClientService) LoginUser(req model.LoginReq) model.LoginResp {
+func (v VaultClientService) LoginUser(ctx context.Context, req model.LoginReq) model.LoginResp {
+	tracer := otel.Tracer("vault-client")
+	ctx, span := tracer.Start(ctx, "Vault.LoginUser")
+	defer span.End()
+
 	resp, err := v.client.Auth.UserpassLogin(
-		context.Background(),
+		ctx,
 		req.Username,
 		schema.UserpassLoginRequest{
 			Password: req.Password,
@@ -120,9 +129,9 @@ func (v VaultClientService) LoginUser(req model.LoginReq) model.LoginResp {
 	return model.LoginResp{Token: resp.Auth.ClientToken, Error: nil}
 }
 
-func (v VaultClientService) VerifyToken(token string) model.VerificationResp {
+func (v VaultClientService) VerifyToken(ctx context.Context, token string) model.VerificationResp {
 	resp, err := v.client.Auth.TokenLookUp(
-		context.Background(),
+		ctx,
 		schema.TokenLookUpRequest{
 			Token: token,
 		},
@@ -149,9 +158,13 @@ func (v VaultClientService) VerifyToken(token string) model.VerificationResp {
 	return model.VerificationResp{Verified: !isBefore, Username: username}
 }
 
-func Initialize(client *vault.Client) VaultClient {
+func Initialize(ctx context.Context, client *vault.Client) VaultClient {
+	tracer := otel.Tracer("vault-client")
+	ctx, span := tracer.Start(ctx, "Vault.Initialize")
+	defer span.End()
+
 	resp, err := client.System.Initialize(
-		context.Background(),
+		ctx,
 		schema.InitializeRequest{
 			PgpKeys:         nil,
 			RootTokenPgpKey: "",
@@ -172,9 +185,13 @@ func Initialize(client *vault.Client) VaultClient {
 	return VaultClient{keysArray: keysArray, rootKey: resp.Data["root_token"].(string)}
 }
 
-func Unseal(client *vault.Client, firstKey string) {
+func Unseal(ctx context.Context, client *vault.Client, firstKey string) {
+	tracer := otel.Tracer("vault-client")
+	ctx, span := tracer.Start(ctx, "Vault.Unseal")
+	defer span.End()
+
 	_, err := client.System.Unseal(
-		context.Background(),
+		ctx,
 		schema.UnsealRequest{
 			Key: firstKey, // first key in array
 		},
@@ -184,9 +201,13 @@ func Unseal(client *vault.Client, firstKey string) {
 	}
 }
 
-func MountSecretEngine(client *vault.Client) {
+func MountSecretEngine(ctx context.Context, client *vault.Client) {
+	tracer := otel.Tracer("vault-client")
+	ctx, span := tracer.Start(ctx, "Vault.MountSecretEngine")
+	defer span.End()
+
 	_, err := client.System.AuthEnableMethod(
-		context.Background(),
+		ctx,
 		"userpass",
 		schema.AuthEnableMethodRequest{
 			Description: "Mount for user identity",
