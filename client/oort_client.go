@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func AuthorizeUser(permission string, subjectId string) bool {
+func AuthorizeUser(ctx context.Context, permission string, subjectId string) bool {
 	conn, err := grpc.Dial("oort:8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -20,7 +20,7 @@ func AuthorizeUser(permission string, subjectId string) bool {
 
 	evaluatorClient := oort.NewOortEvaluatorClient(conn)
 
-	getResp, err := evaluatorClient.Authorize(context.Background(), &oort.AuthorizationReq{
+	getResp, err := evaluatorClient.Authorize(ctx, &oort.AuthorizationReq{
 		Subject: &oort.Resource{
 			Id:   subjectId,
 			Kind: "user",
@@ -40,7 +40,7 @@ func AuthorizeUser(permission string, subjectId string) bool {
 	return getResp.Authorized
 }
 
-func CreateOrgUserRelationship(org_id string, user_id string) error {
+func CreateOrgUserRelationship(ctx context.Context, org_id string, user_id string) error {
 	conn, err := grpc.Dial("oort:8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +51,7 @@ func CreateOrgUserRelationship(org_id string, user_id string) error {
 
 	log.Printf("Org za inherit: " + org_id)
 	log.Printf("User za inherit: " + user_id)
-	_, err = administratorClient.CreateInheritanceRel(context.TODO(), &oort.CreateInheritanceRelReq{
+	_, err = administratorClient.CreateInheritanceRel(ctx, &oort.CreateInheritanceRelReq{
 		From: &oort.Resource{
 			Id:   org_id,
 			Kind: "org",
@@ -68,7 +68,7 @@ func CreateOrgUserRelationship(org_id string, user_id string) error {
 	return nil
 }
 
-func GetGrantedPermissions(user string) []*oort.GrantedPermission {
+func GetGrantedPermissions(ctx context.Context, user string) []*oort.GrantedPermission {
 	conn, err := grpc.Dial("oort:8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -77,7 +77,7 @@ func GetGrantedPermissions(user string) []*oort.GrantedPermission {
 
 	evaluatorClient := oort.NewOortEvaluatorClient(conn)
 
-	resp, err := evaluatorClient.GetGrantedPermissions(context.TODO(), &oort.GetGrantedPermissionsReq{
+	resp, err := evaluatorClient.GetGrantedPermissions(ctx, &oort.GetGrantedPermissionsReq{
 		Subject: &oort.Resource{
 			Id:   user,
 			Kind: "user",
@@ -96,7 +96,7 @@ func GetGrantedPermissions(user string) []*oort.GrantedPermission {
 	return resp.Permissions
 }
 
-func CreatePolicyAsync(org_id string, user string, perms []string) {
+func CreatePolicyAsync(ctx context.Context, org_id string, user string, perms []string) {
 	permissions := getPermissionsForOort(perms)
 	administratorAsync, err := oort.NewAdministrationAsyncClient("nats:4222")
 
@@ -107,7 +107,7 @@ func CreatePolicyAsync(org_id string, user string, perms []string) {
 	log.Printf("User za policy: " + user)
 	log.Printf("Org za policy: " + org_id)
 	for _, perm := range permissions {
-		err := administratorAsync.SendRequest(&oort.CreatePolicyReq{
+		err := administratorAsync.SendRequest(ctx, &oort.CreatePolicyReq{
 			SubjectScope: &oort.Resource{
 				Id:   user,
 				Kind: "user",

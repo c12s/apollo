@@ -37,13 +37,13 @@ func (h AuthService) RegisterUser(ctx context.Context, req model.UserDTO) model.
 		return registerResp
 	}
 
-	err := client.CreateOrgUserRelationship(registerResp.User.Org, registerResp.User.Username)
+	err := client.CreateOrgUserRelationship(ctx, registerResp.User.Org, registerResp.User.Username)
 	if err != nil {
 		log.Printf("Error while creating inheritance rel: %v", err)
 		return model.RegisterResp{User: model.UserDTO{}, Error: err}
 	}
 
-	client.CreatePolicyAsync(registerResp.User.Org,
+	client.CreatePolicyAsync(ctx, registerResp.User.Org,
 		registerResp.User.Username,
 		registerResp.User.Permissions)
 
@@ -82,7 +82,7 @@ func (h AuthService) VerifyToken(ctx context.Context, req model.Token) (model.In
 	}
 
 	// proveriti da li ima nekih promena na oort-u
-	permissions := client.GetGrantedPermissions(response.Username)
+	permissions := client.GetGrantedPermissions(ctx, response.Username)
 
 	// create jwt with permissions inside
 	token, err := CreateToken(response.Username, transformPermissions(response.Username, permissions))
