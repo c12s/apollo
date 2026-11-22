@@ -20,8 +20,7 @@ every protected request: gateway ──▶ apollo.VerifyToken ──▶ Vault (i
 `VerifyToken` sits on the **hot path of every authenticated request**: the
 gateway calls it, gets a freshly minted JWT whose `permissions` are the
 (current) permissions Oort grants to the user, and forwards that JWT to
-Magnetar/Gravity/etc. This is why an Oort outage takes down the whole API
-(see bugs).
+Magnetar/Gravity/etc. This is why an Oort outage takes down the whole API.
 
 ## API (`proto1/service.proto`, gRPC reflection enabled)
 
@@ -76,43 +75,3 @@ hardcoded to `8002` and the Oort/NATS clients to `oort:8000` / `nats:4222`.
   permission, submitted asynchronously over NATS.
 - **Scylla availability = login/registration availability**; **Oort
   availability = authorization availability**.
-
-## Status
-
-Stable for the lab auth chain (every protected request depends on it); the
-robustness findings below are accepted lab risks until a v2 hardening pass.
-
-## Bugs, disabled and unfinished features
-
-### Confirmed bugs
-
-| Where | Effect |
-|---|---|
-| `client/oort_client.go` — `GetGrantedPermissions` | Uses `log.Fatalln(err)` on RPC error: **if Oort is unreachable while `VerifyToken` runs, the Apollo process exits.** A CP component outage thus crashes the identity service instead of returning an error. Same pattern (`log.Fatal` on dial) in `AuthorizeUser`. |
-| Hardcoded endpoints | `oort:8000`, `nats:4222`, port `8002` are constants; the compose env vars for them are ignored. Apollo cannot run outside the compose network. |
-| `server/auth_server.go` — `Authorize` | Returns `{authorized: true}` unconditionally — an unimplemented stub exposed on the gRPC surface. (The real check is Oort's `Authorize`; nothing in the lab routes to this RPC.) |
-| `repository/user_repo_impl.go` — registration | **Not transactional**: Scylla user is inserted before the org row; a later failure (org insert, Oort relationship) leaves a half-registered user whose re-registration then fails with "user already exists". Async policy submission failures are only logged. |
-| Orgs get **all** permissions | A new org owner receives the entire permission catalog; combined with the stub above, the lab model is permissive by default. Acceptable for experiments, needs redesign for multi-tenant use. |
-
-### Disabled / unfinished features
-
-- `configs/nats` configuration is never consumed (dead code).
-- `repository.UserRepo.LoginUser` is a stub (`invalid mapping`) — login is
-  implemented directly against Vault.
-- No tests (`go test ./...` → no test files).
-- Vault is fully trusted for password storage, but **the root token is stored
-  on disk and used for all operations**; userpass tokens (0.5h) and the issued
-  JWT (24h) have unrelated lifetimes.
-
-### PoC boundaries (by design, not bugs)
-
-- Plain HTTP to Vault inside the compose network; `SECRET_KEY` is a shared
-  lab value and every service trusts it.
-- `RegisterUser` only checks username/email/org uniqueness (no email
-  verification, no password policy).
-- The permission snapshot in the JWT is taken at request time via
-  `VerifyToken`, so Oort policy changes apply from the next request — a
-  deliberate simplification (no token revocation list).
-
-References: `../plan/architecture.md` §auth chain, `../tools/docs/README.md`
-(corrected API reference), `../plan/review.md` (S1: NATS trust boundary).
